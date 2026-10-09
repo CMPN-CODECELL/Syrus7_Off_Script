@@ -1,0 +1,147 @@
+/* ===================================================
+   Syrus Global Styles
+   Supports two themes via data-theme attribute on <html>:
+     data-theme="terminal"  →  Dark Terminal (Bloomberg)
+     data-theme="luxury"    →  Dark Luxury (Premium Fintech)
+   =================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Variables by theme ── */
+:root,
+[data-theme="terminal"] {
+  --bg:          #0a0a0f;
+  --surface:     #111118;
+  --surface-2:   #1a1a24;
+  --border:      #1e1e2e;
+  --accent:      #00ff88;
+  --accent-dim:  #00ff8833;
+  --accent-2:    #00d4ff;
+  --text:        #e2e8f0;
+  --text-muted:  #64748b;
+  --danger:      #ff4d6d;
+  --warning:     #fbbf24;
+  --success:     #00ff88;
+  --font-body:   'JetBrains Mono', monospace;
+  --font-display:'JetBrains Mono', monospace;
+}
+
+[data-theme="luxury"] {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface-2:   #1c2128;
+  --border:      #21262d;
+  --accent:      #6366f1;
+  --accent-dim:  #6366f133;
+  --accent-2:    #a78bfa;
+  --text:        #f0f6fc;
+  --text-muted:  #8b949e;
+  --danger:      #f85149;
+  --warning:     #d29922;
+  --success:     #3fb950;
+  --font-body:   'Inter', sans-serif;
+  --font-display:'Inter', sans-serif;
+}
+
+/* ── Base ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background:  var(--bg);
+  color:       var(--text);
+  font-family: var(--font-body);
+  font-size:   14px;
+  line-height: 1.6;
+  min-height:  100vh;
+  overflow-x:  hidden;
+}
+
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar               { width: 4px; height: 4px; }
+::-webkit-scrollbar-track         { background: var(--surface); }
+::-webkit-scrollbar-thumb         { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover   { background: var(--text-muted); }
+
+/* ── Utility classes ── */
+.syrus-surface  { background: var(--surface);   border: 1px solid var(--border); border-radius: 8px; }
+.syrus-surface-2{ background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+.accent-text    { color: var(--accent); }
+.muted-text     { color: var(--text-muted); }
+.danger-text    { color: var(--danger); }
+.warning-text   { color: var(--warning); }
+
+/* ── Glow effects (terminal theme) ── */
+[data-theme="terminal"] .accent-glow {
+  box-shadow: 0 0 12px var(--accent-dim), 0 0 24px var(--accent-dim);
+}
+[data-theme="luxury"] .accent-glow {
+  box-shadow: 0 0 12px var(--accent-dim);
+}
+
+/* ── Blinking cursor ── */
+.cursor::after {
+  content: '█';
+  color: var(--accent);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* ── Ticker strip ── */
+.ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ticker-inner {
+  display: inline-flex;
+  animation: ticker 40s linear infinite;
+}
+.ticker-inner:hover { animation-play-state: paused; }
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── SSE streaming text ── */
+.streaming-text::after {
+  content: '▋';
+  color: var(--accent);
+  animation: blink 0.7s step-end infinite;
+}
+
+/* ── Confirmation card ── */
+.confirm-card {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 0 20px var(--accent-dim);
+}
+
+/* ── Risk score bar ── */
+.risk-bar-fill {
+  height: 6px;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* ── Status badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge-filled   { background: var(--accent-dim);   color: var(--accent); }
+.badge-rejected { background: #ff4d6d22;            color: var(--danger); }
+.badge-pending  { background: #fbbf2422;            color: var(--warning); }
+.badge-draft    { background: var(--surface-2);     color: var(--text-muted); }
+.badge-partial  { background: #60a5fa22;            color: #60a5fa; }

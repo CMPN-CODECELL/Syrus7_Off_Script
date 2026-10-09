@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: syrus_postgres
+    environment:
+      POSTGRES_DB: syrus
+      POSTGRES_USER: syrus
+      POSTGRES_PASSWORD: syrus_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U syrus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: syrus_redis
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mock-api:
+    build:
+      context: ./mock-api
+      dockerfile: Dockerfile
+    container_name: syrus_mock_api
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - USE_REAL_API=false
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./mock-api:/app
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: syrus_backend
+    env_file:
+      - ./.env.local
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://syrus:syrus_secret@postgres:5432/syrus
+      - REDIS_URL=redis://redis:6379
+      - MOCK_API_URL=http://mock-api:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-api:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: syrus_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
