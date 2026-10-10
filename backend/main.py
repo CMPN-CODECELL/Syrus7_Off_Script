@@ -4,11 +4,12 @@ Syrus Backend — Main FastAPI Application
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import re
 from datetime import datetime, timezone
 
 import httpx
 import redis.asyncio as aioredis
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -16,6 +17,7 @@ from config import settings
 from db import AsyncSessionLocal, init_db
 from services.price_poller import PricePoller
 from services.standing_instructions import StandingInstructionRunner
+from services.stock_data_service import get_stock_provider
 
 
 # Global redis client shared across services
@@ -89,6 +91,40 @@ app.include_router(audit.router,        prefix="/audit",        tags=["Audit"])
 app.include_router(risk_limits.router, prefix="/risk-limits",  tags=["Risk Budget"])
 
 
+@app.get("/market/history/{symbol}")
+async def market_history(symbol: str, days: int = Query(default=30, ge=1, le=365)):
+    """Return chart points from provider history or quotes observed by this app."""
+    cleaned = symbol.strip().upper()
+    aliases = {"NIFTY 50": "^NSEI", "SENSEX": "^BSESN", "NIFTY50": "^NSEI"}
+    provider_symbol = aliases.get(cleaned, cleaned)
+    if not re.fullmatch(r"[A-Z0-9.^_-]{1,24}", provider_symbol):
+        raise HTTPException(status_code=400, detail="Invalid market symbol.")
+    if provider_symbol not in {"^NSEI", "^BSESN"} and "." not in provider_symbol:
+        provider_symbol += ".NS"
+
+    if settings.market_data_provider.lower() == "yahoo":
+        try:
+            provider = get_stock_provider("yahoo")
+            points = await provider.get_historical_data(provider_symbol, days=days)
+            points = [{"time": item["date"], "price": item["close"]} for item in points if item.get("close")]
+            return {"symbol": provider_symbol, "provider": "yahoo_finance", "mode": "external_market_data", "points": points}
+        except Exception as error:
+            raise HTTPException(status_code=502, detail="Market history is unavailable from the configured provider.") from error
+
+    redis = redis_client
+    if redis is None:
+        raise HTTPException(status_code=503, detail="Market data cache is not ready.")
+    redis_symbol = {"^NSEI": "NIFTY 50", "^BSESN": "SENSEX"}.get(provider_symbol, provider_symbol)
+    raw_points = await redis.lrange(f"market:history:{redis_symbol}", 0, -1)
+    points = []
+    for raw_point in raw_points:
+        try:
+            points.append(json.loads(raw_point))
+        except (TypeError, ValueError):
+            continue
+    return {"symbol": redis_symbol, "provider": "fixed_demo_fallback", "mode": "demo", "points": points[-max(2, days * 20):]}
+
+
 @app.get("/health")
 async def health():
     """Liveness probe: the backend process can answer requests."""
@@ -102,7 +138,7 @@ async def readiness():
         "postgres": "down",
         "redis": "down",
         "mock_broker": "down",
-        "demo_quotes": "down",
+        "market_data": "down",
     }
 
     try:
@@ -126,8 +162,8 @@ async def readiness():
         try:
             updated_at = datetime.fromisoformat(snapshot["updated_at"].replace("Z", "+00:00"))
             age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
-            if 0 <= age_seconds <= 60 and snapshot.get("prices"):
-                checks["demo_quotes"] = "ok"
+            if 0 <= age_seconds <= 180 and snapshot.get("prices"):
+                checks["market_data"] = "ok"
         except (TypeError, ValueError):
             pass
 

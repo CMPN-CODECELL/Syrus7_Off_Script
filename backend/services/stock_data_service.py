@@ -81,7 +81,8 @@ class YahooFinanceProvider(StockDataProvider):
         try:
             loop = asyncio.get_event_loop()
             ticker = await loop.run_in_executor(None, yf.Ticker, symbol)
-            hist = await loop.run_in_executor(None, lambda: ticker.history(period=f"{days}d"))
+            interval = "5m" if days <= 1 else "30m" if days <= 30 else "1d"
+            hist = await loop.run_in_executor(None, lambda: ticker.history(period=f"{days}d", interval=interval))
 
             data = []
             for date, row in hist.iterrows():

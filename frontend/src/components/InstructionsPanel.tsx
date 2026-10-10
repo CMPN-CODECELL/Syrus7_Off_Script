@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 
-export default function InstructionsPanel() {
+export default function InstructionsPanel({ onCreate, stopLossOnly = false }: { onCreate?: () => void; stopLossOnly?: boolean }) {
   const [instructions, setInstructions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -55,6 +55,10 @@ export default function InstructionsPanel() {
     }
   }
 
+  const visibleInstructions = stopLossOnly
+    ? instructions.filter(inst => inst.condition_type === 'PRICE_BELOW' && inst.action_side === 'SELL')
+    : instructions
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -68,25 +72,25 @@ export default function InstructionsPanel() {
       {/* Header */}
       <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Standing Instructions</h2>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all"
+          <h2 className="text-lg font-bold">{stopLossOnly ? 'Stop-loss management' : 'Standing instructions'}</h2>
+          <button onClick={onCreate} className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all"
                   style={{ background: 'var(--accent)', color: '#000' }}>
             <Plus size={12} />
-            Create via Chat
+            {stopLossOnly ? 'Create stop-loss' : 'Create via Copilot'}
           </button>
         </div>
         <p className="text-xs muted-text mt-1">
-          Automated rules that fire when market conditions are met. Create new rules by chatting with StockItUp.
+          {stopLossOnly ? 'Manage price-below sell rules for your demo holdings. Activating a rule pre-authorizes its simulated order if the trigger is reached.' : 'Review, pause, resume, or cancel standing rules. Create new rules through the Copilot.'}
         </p>
       </div>
 
       {/* Instructions List */}
       <div className="flex-1 overflow-y-auto p-4">
         {error && <p role="alert" className="mb-3 rounded border p-3 text-sm" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>{error}</p>}
-        {instructions.length === 0 ? (
+        {visibleInstructions.length === 0 ? (
           <div className="text-center py-12">
             <Clock size={32} className="mx-auto mb-3 muted-text" />
-            <h3 className="font-medium mb-2">No standing instructions</h3>
+            <h3 className="font-medium mb-2">{stopLossOnly ? 'No stop-loss rules yet' : 'No standing instructions'}</h3>
             <p className="text-sm muted-text mb-4">
               Create automated trading rules by saying things like:<br />
               "If INFY drops below ₹1750, sell 50 shares"
@@ -94,7 +98,7 @@ export default function InstructionsPanel() {
           </div>
         ) : (
           <div className="space-y-3">
-            {instructions.map((inst: any) => (
+            {visibleInstructions.map((inst: any) => (
               <div key={inst.id} className="syrus-surface p-4">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">

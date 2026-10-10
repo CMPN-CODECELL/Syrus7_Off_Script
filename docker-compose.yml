@@ -71,6 +71,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://syrus:syrus_secret@postgres:5432/syrus
       - REDIS_URL=redis://redis:6379
       - MOCK_API_URL=http://mock-api:8001
+      - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-demo}
     depends_on:
       postgres:
         condition: service_healthy

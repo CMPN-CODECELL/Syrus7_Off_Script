@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, Loader2, ShieldAlert } from 'lucide-react'
+import { Send, Loader2, ShieldAlert, WalletCards, Search, ShieldCheck, ClipboardList, Sparkles, ArrowUpRight } from 'lucide-react'
 import ConfirmationCard from './ConfirmationCard'
 import InstructionConfirmationCard from './InstructionConfirmationCard'
 import RiskLimitConfirmationCard from './RiskLimitConfirmationCard'
 import OrderPlanCard, { type OrderPlan } from './OrderPlanCard'
+import ResponseContent from './ResponseContent'
 import { streamChat } from '@/lib/api'
 
 interface Message {
@@ -27,6 +28,7 @@ interface DraftData {
   order_type: string
   quantity: number
   price?: number
+  trigger_price?: number
   quoted_price?: number
   risk_score?: number
   risk_check_passed?: boolean
@@ -53,23 +55,15 @@ interface RiskLimitDraftData {
   expires_at: string
 }
 
-const SUGGESTIONS = [
-  "What's my current portfolio value?",
-  "Show me RELIANCE price and my position",
-  "Buy 50 shares of INFY at market",
-  "Set my maximum order value to ₹2 lakh",
-  "Set a stop-loss on TCS below ₹4000",
-  "Show today's P&L across all positions",
+const QUICK_ACTIONS = [
+  { title: 'Analyse portfolio', detail: 'Holdings, balance and P&L', icon: WalletCards, prompt: 'Analyse my current demo portfolio, holdings, and P&L.' },
+  { title: 'Check stock price', detail: 'Look up a supported quote', icon: Search, prompt: 'Show me the current INFY price and my position.' },
+  { title: 'Review risk', detail: 'Understand portfolio risk limits', icon: ShieldCheck, prompt: 'Review my portfolio exposure and current risk limits.' },
+  { title: 'Review pending orders', detail: 'See drafts awaiting approval', icon: ClipboardList, prompt: 'Show my pending orders and their approval status.' },
 ]
 
-export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: "Good morning. I'm StockItUp, your AI trading copilot. I can read your demo portfolio, check supported stock quotes, and prepare mock orders for your approval. What would you like to do?",
-    },
-  ])
+export default function ChatPanel({ prompt, onPromptConsumed }: { prompt?: string; onPromptConsumed?: () => void }) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [history, setHistory] = useState<{ role: string; content: string }[]>([])
@@ -165,6 +159,10 @@ export default function ChatPanel() {
     }
   }
 
+  useEffect(() => {
+    if (prompt) { sendMessage(prompt); onPromptConsumed?.() }
+  }, [prompt])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -186,17 +184,11 @@ export default function ChatPanel() {
     <div className="flex flex-col h-full">
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className={`chat-messages flex-1 overflow-y-auto p-4 space-y-4 ${messages.length === 0 ? 'chat-empty' : ''}`}>
+        {messages.length === 0 && <div className="welcome-state"><div className="welcome-icon"><Sparkles size={19}/></div><span className="panel-eyebrow">YOUR AI TRADING COPILOT</span><h2>Good morning.</h2><p>What would you like to work through today?</p><div className="quick-action-grid">{QUICK_ACTIONS.map(({title,detail,icon:Icon,prompt:actionPrompt})=><button key={title} className="quick-action-card" onClick={()=>sendMessage(actionPrompt)} disabled={isStreaming}><span className="quick-action-icon"><Icon size={17}/></span><span><b>{title}</b><small>{detail}</small></span><ArrowUpRight size={14} className="quick-action-arrow"/></button>)}</div><div className="welcome-disclosure">Ask questions, review risk, or prepare a draft. Trade proposals need your explicit approval.</div></div>}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-2xl ${msg.role === 'user' ? 'order-user' : 'order-assistant'}`}>
-
-              {msg.role === 'assistant' && (
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs accent-text font-bold tracking-wider">STOCKITUP</span>
-                  {msg.streaming && <Loader2 size={10} className="animate-spin accent-text" />}
-                </div>
-              )}
 
               {msg.injectionBlocked ? (
                 <div className="flex items-start gap-2 p-3 rounded-lg"
@@ -204,16 +196,12 @@ export default function ChatPanel() {
                   <ShieldAlert size={16} style={{ color: 'var(--danger)', marginTop: 2, flexShrink: 0 }} />
                   <span style={{ color: 'var(--danger)', fontSize: 13 }}>{msg.content}</span>
                 </div>
-              ) : (
+              ) : msg.role === 'user' ? (
                 <div
-                  className={`px-4 py-3 rounded-xl text-sm ${
-                    msg.role === 'user'
-                      ? 'ml-auto'
-                      : msg.streaming ? 'streaming-text' : ''
-                  }`}
+                  className="px-4 py-3 rounded-xl text-sm ml-auto"
                   style={{
-                    background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--surface-2)',
-                    border: `1px solid ${msg.role === 'user' ? 'var(--accent)' : 'var(--border)'}`,
+                    background: 'var(--accent-dim)',
+                    border: '1px solid var(--accent)',
                     color: 'var(--text)',
                     whiteSpace: 'pre-wrap',
                     fontFamily: 'var(--font-body)',
@@ -221,6 +209,17 @@ export default function ChatPanel() {
                 >
                   {msg.content}
                 </div>
+              ) : (
+                <article className={`assistant-response-card ${msg.streaming ? 'is-streaming' : ''}`}>
+                  <header className="response-card-header">
+                    <span className="response-avatar"><Sparkles size={13}/></span>
+                    <span className="response-brand">STOCKITUP <small>AI COPILOT</small></span>
+                    <span className="response-live-status">{msg.streaming ? <><Loader2 size={10} className="animate-spin"/> THINKING</> : 'INSIGHT'}</span>
+                  </header>
+                  <div className="response-card-content">
+                    {msg.content ? <ResponseContent content={msg.content}/> : <div className="response-skeleton"><i/><i/><i/></div>}
+                  </div>
+                </article>
               )}
 
               {/* Draft confirmation card */}
@@ -253,23 +252,8 @@ export default function ChatPanel() {
       </div>
 
       {/* Suggestions */}
-      {messages.length <= 1 && (
-        <div className="px-4 pb-2 flex flex-wrap gap-2">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => sendMessage(s)}
-              className="text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-90"
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Input */}
-      <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>
+      <div className="chat-composer p-4 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-end gap-3 p-3 rounded-xl"
              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <textarea

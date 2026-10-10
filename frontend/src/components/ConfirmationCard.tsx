@@ -11,6 +11,7 @@ interface ConfirmationCardProps {
     order_type: string
     quantity: number
     price?: number
+    trigger_price?: number
     quoted_price?: number
     risk_score?: number
     risk_check_passed?: boolean
@@ -60,11 +61,11 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
         success: data.success,
         status: data.status,
         message: data.success
-          ? `Order ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}`
-          : `${data.status || 'Order failed'}: ${data.message || 'The broker did not fill this order.'}`,
+          ? `Demo broker simulation: ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}. No real trade was placed.`
+          : `Demo broker simulation · ${data.status || 'Order failed'}: ${data.message || 'The mock broker did not fill this order.'}`,
       })
       if (data.success) {
-        onApproved(`Order ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}.`)
+        onApproved(`Demo broker simulation: ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}. No real trade was placed.`)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to approve this order.'
@@ -74,7 +75,7 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
       setResult({
         success: false,
         status: 'SUBMITTED',
-        message: `Execution status is unknown (${message}). Do not retry this order; check its broker status first.`,
+        message: `The demo broker submission status is unknown (${message}). Do not retry this order; check its status first. No real trade was placed by this local demo.`,
       })
     } finally {
       setLoading(false)
@@ -87,8 +88,8 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
       const res = await fetch(`http://localhost:8000/orders/${draft.order_id}/reconcile`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.detail || data.message || `Reconciliation failed (${res.status})`)
-      setResult({ success: Boolean(data.success), status: data.status, message: data.message || `Broker status: ${data.status}` })
-      if (data.success) onApproved(data.message || `Order ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}.`)
+      setResult({ success: Boolean(data.success), status: data.status, message: `Demo broker simulation: ${data.message || `Broker status: ${data.status}`} No real trade was placed.` })
+      if (data.success) onApproved(`Demo broker simulation: ${data.message || `Order ${data.status} — ${data.filled_quantity} shares filled at ₹${data.average_price}.`} No real trade was placed.`)
     } catch (error) {
       setResult({
         success: false,
@@ -166,7 +167,7 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-base font-bold accent-text tracking-wide">{draft.side} {draft.symbol}</h3>
-          <p className="text-xs muted-text mt-0.5">{draft.order_type} ORDER</p>
+          <p className="text-xs muted-text mt-0.5">{draft.order_type} ORDER · MOCK BROKER</p>
         </div>
         <div className="flex items-center gap-1.5 text-xs"
              style={{ color: timeLeft < 10 ? 'var(--danger)' : 'var(--warning)' }}>
@@ -184,7 +185,7 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
         <div>
           <span className="muted-text text-xs">Price</span>
           <p className="font-mono font-bold mt-0.5">
-            {draft.order_type === 'MARKET' ? 'MARKET' : `₹${draft.price?.toFixed(2)}`}
+            {draft.order_type === 'MARKET' ? 'MARKET' : ['SL', 'SL-M'].includes(draft.order_type) ? `Trigger ₹${draft.trigger_price?.toFixed(2) ?? '—'}` : `₹${draft.price?.toFixed(2) ?? '—'}`}
           </p>
         </div>
         <div>
@@ -222,7 +223,7 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
           className="flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all disabled:opacity-30 accent-glow"
           style={{ background: 'var(--accent)', color: '#000' }}
         >
-          {loading ? 'Executing...' : !riskPassed ? 'Risk checks failed' : !hasValidQuote ? 'Waiting for quote...' : 'Approve & Execute'}
+          {loading ? 'Simulating…' : !riskPassed ? 'Risk checks failed' : !hasValidQuote ? 'Waiting for quote...' : 'Approve demo order'}
         </button>
         <button
           onClick={handleReject}
@@ -237,7 +238,7 @@ export default function ConfirmationCard({ draft, onApproved, onRejected }: Conf
       <p className="text-xs text-center muted-text">
         {!riskPassed
           ? 'This draft cannot be approved because it failed a configured risk check.'
-          : `This order will only execute if you click Approve within ${timeLeft} seconds.`}
+          : `Click Approve to send this order to the simulated broker. No real trade will be placed. ${timeLeft}s remaining.`}
       </p>
     </div>
   )
